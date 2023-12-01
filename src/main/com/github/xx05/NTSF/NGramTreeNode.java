@@ -139,11 +139,11 @@ public class NGramTreeNode {
     }
 
     /**
-     * Returns the number of children directly attached to this node.
+     * Returns the number of branches this node has (child nodes directly attached to this node).
      *
      * @return The number of children directly attached to this node.
      */
-    public int getChildrenCount() {
+    public int getBranchCount() {
         return children.size();
     }
 

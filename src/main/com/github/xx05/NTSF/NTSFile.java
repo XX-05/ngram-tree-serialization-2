@@ -6,6 +6,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class NTSFile {
+    SerializationCodec codec;
+
+    /**
+     * Creates a new NGramTreeNodeFileHandler which uses the given serialization codec
+     * to serialize and deserialize ngram trees.
+     *
+     * @param serializationCodec The codec to use for binary tree (de)serialization
+     */
+    public NTSFile(SerializationCodec serializationCodec) {
+        codec = serializationCodec;
+    }
+
     /**
      * Returns the minimum number of bytes needed to
      * represent the given number.
@@ -13,7 +25,7 @@ public class NTSFile {
      * @param number An integer to measure in bytes
      * @return The number of bytes needed to store the given number
      */
-    private static int computeByteSize(int number) {
+    private static int computeByteWidth(int number) {
         return (int) Math.ceil(Math.log(number + 1) / Math.log(2) / 8.0);
     }
 
@@ -62,7 +74,7 @@ public class NTSFile {
     static void filterRepeats(List<String> repeatedWords) {
         for (int i = 0; i < repeatedWords.size(); i ++) {
             String word = repeatedWords.get(i);
-            if (computeByteSize(i) + 2 >= word.length() || word.length() > 256) {
+            if (computeByteWidth(i) + 2 >= word.length() || word.length() > 256) {
                 repeatedWords.remove(i);
                 i --;
             }
@@ -118,5 +130,56 @@ public class NTSFile {
         for (String word : wordBank) {
             outputStream.write(encodeWordForWordBank(word));
         }
+    }
+
+    static byte[] encodeNodeStandard(NGramTreeNode node) {
+        int nChildren = node.getBranchCount();
+        int nChildrenByteWidth = computeByteWidth(nChildren);
+
+        if (nChildrenByteWidth > 63) {
+            System.out.println(nChildren + " " + nChildrenByteWidth);
+        }
+
+        byte[] wordBytes = node.getWord().getBytes(StandardCharsets.US_ASCII);
+
+        byte[] encoded = new byte[wordBytes.length + nChildrenByteWidth + 1];
+        System.arraycopy(wordBytes, 0, encoded, 0, wordBytes.length);
+
+        // END_WORD byte storing the number of bytes encoding N_CHILDREN like so
+        // | 1 0 | | (6 byte N_CHILDREN_SIZE) |
+        encoded[wordBytes.length] = (byte) (128 | nChildrenByteWidth);
+
+        // copy nChildren bytes into tail-end of encoded array big-endian
+        for (int i = 0; i < nChildrenByteWidth; i++) {
+            encoded[encoded.length - i - 1] = (byte) (nChildren >> (i * 8));
+        }
+
+        return encoded;
+    }
+
+    static byte[] encodeNodeWordBankReference(int wordBankAddress, NGramTreeNode node) {
+        int nChildren = node.getBranchCount();
+        int nChildrenByteWidth = computeByteWidth(nChildren);
+        int addressByteWidth = computeByteWidth(wordBankAddress);
+
+        byte[] encoded = new byte[addressByteWidth + nChildrenByteWidth + 2];
+
+        encoded[0] = (byte) (192 | addressByteWidth);
+
+        // copy word bank address into encoded array big-endian
+        for (int i = 0; i < addressByteWidth; i ++) {
+            encoded[addressByteWidth - i] = (byte) (wordBankAddress >> (i * 8));
+        }
+
+        // END_WORD byte storing the number of bytes encoding N_CHILDREN like so
+        // | 1 0 | | (6 byte N_CHILDREN_SIZE) |
+        encoded[addressByteWidth + 1] = (byte) (128 | nChildrenByteWidth);
+
+        // copy nChildren bytes into tail-end of encoded array big-endian
+        for (int i = 0; i < nChildrenByteWidth; i++) {
+            encoded[encoded.length - i - 1] = (byte) (nChildren >> (i * 8));
+        }
+
+        return encoded;
     }
 }

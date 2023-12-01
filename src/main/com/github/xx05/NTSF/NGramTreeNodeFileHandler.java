@@ -25,48 +25,6 @@ import java.util.List;
 import java.util.Stack;
 
 
-class Pair<A, B> {
-    private A first;
-    private B second;
-
-    public Pair(A first, B second) {
-        this.first = first;
-        this.second = second;
-    }
-
-    public A getFirst() {
-        return first;
-    }
-
-    public void setFirst(A newValue) {
-        first = newValue;
-    }
-
-    public B getSecond() {
-        return second;
-    }
-
-    public void setSecond(B newValue) {
-        second = newValue;
-    }
-
-    @Override
-    public String toString() {
-        return "(" + first + ", " + second + ")";
-    }
-
-    public boolean equals(Pair<?, ?> other) {
-        if (other.first.getClass() != first.getClass())
-            return false;
-        if (other.second.getClass() != second.getClass())
-            return false;
-
-        if (!other.first.equals(first))
-            return false;
-        return other.second.equals(second);
-    }
-}
-
 /**
  * A utility class for handling serialization and deserialization of NGramTreeNode objects.
  * Provides methods to serialize NGramTreeNode trees into string and binary formats,
@@ -204,7 +162,7 @@ public class NGramTreeNodeFileHandler {
      * @return A byte block storing the node's data.
      */
     byte[] encodeNodeBinary(NGramTreeNode node) {
-        int nChildren = node.getChildrenCount();
+        int nChildren = node.getBranchCount();
         int nChildrenBytes = (int) Math.ceil(Math.log(nChildren + 1) / Math.log(2) / 8.0);
         byte[] wordBytes = node.getWord().getBytes(StandardCharsets.US_ASCII);
 
@@ -213,10 +171,9 @@ public class NGramTreeNodeFileHandler {
 
         encoded[wordBytes.length] = (byte) (codec.END_WORD_RANGE_START + nChildrenBytes);
 
-        // copy nChildren bytes into tail-end of encoded array
-        for (int i = 0; i < nChildrenBytes; i ++) {
-            encoded[encoded.length - i - 1] = (byte) (nChildren & 0xff);
-            nChildren = nChildren >> 8;
+        // copy nChildren bytes into tail-end of encoded array big-endian
+        for (int i = 0; i < nChildrenBytes; i++) {
+            encoded[encoded.length - i - 1] = (byte) (nChildren >> (i * 8));
         }
 
         return encoded;
@@ -292,7 +249,7 @@ public class NGramTreeNodeFileHandler {
             int nodeHash = rollingHash(node.getWord());
 
             if (node.getWord().equals(backreferences[nodeHash])) {
-                fw.write(encodeNodeBackreferenceBinary(nodeHash, node.getChildrenCount()));
+                fw.write(encodeNodeBackreferenceBinary(nodeHash, node.getBranchCount()));
             } else {
                 backreferences[nodeHash] = node.getWord();
                 fw.write(encodeNodeBinary(node));
