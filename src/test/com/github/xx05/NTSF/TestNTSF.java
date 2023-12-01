@@ -1,9 +1,4 @@
-package com.github.xx05.NTSF.test;
-
-import com.github.xx05.NTSF.MalformedSerialBinaryException;
-import com.github.xx05.NTSF.NGramTreeNode;
-import com.github.xx05.NTSF.NGramTreeNodeFileHandler;
-import com.github.xx05.NTSF.NTSFile;
+package com.github.xx05.NTSF;
 
 import java.io.*;
 import java.util.ArrayList;

@@ -25,7 +25,7 @@ public class NTSFile {
      * @param rootNode The root node of the tree to traverse
      * @return A sorted list of repeated words in the tree
      */
-    public static List<String> findRepeats(NGramTreeNode rootNode) {
+    static List<String> findRepeats(NGramTreeNode rootNode) {
         HashMap<String, Integer> counts = new HashMap<>();
         Stack<NGramTreeNode> stack = new Stack<>();
 
@@ -59,7 +59,7 @@ public class NTSFile {
      *
      * @param repeatedWords A list of repeated words from a NGramTree to filter.
      */
-    private static void filterRepeats(List<String> repeatedWords) {
+    static void filterRepeats(List<String> repeatedWords) {
         for (int i = 0; i < repeatedWords.size(); i ++) {
             String word = repeatedWords.get(i);
             if (computeByteSize(i) + 2 >= word.length() || word.length() > 256) {
@@ -80,26 +80,43 @@ public class NTSFile {
      * @param rootNode The root node of the NGram Tree branch to traverse.
      * @return A sorted and filtered list of repeated words forming the compiled word bank.
      */
-    public static List<String> compileWordBank(NGramTreeNode rootNode) {
+    static List<String> compileWordBank(NGramTreeNode rootNode) {
         List<String> repeats = findRepeats(rootNode);
         filterRepeats(repeats);
         return repeats;
     }
 
-    public static byte[] encodeWordForWordBank(String word) {
-        byte[] encoded = new byte[word.length() + 1];
-        encoded[0] = (byte) word.length();
+    /**
+     * Encodes a word as bytes for the word bank
+     * in the binary tree serialization.
+     *
+     * @param word The word to encode.
+     * @return The encoded word block.
+     */
+    static byte[] encodeWordForWordBank(String word) {
+        int length = word.length();
+        byte[] encoded = new byte[length + 1];
 
-        byte[] wordBytes = word.getBytes(StandardCharsets.US_ASCII);
-        System.arraycopy(wordBytes, 0, encoded, 1, wordBytes.length);
+        encoded[0] = (byte) length;
+        System.arraycopy(word.getBytes(StandardCharsets.US_ASCII), 0, encoded, 1, length);
+
         return encoded;
     }
 
-    public static void writeWordBank(NGramTreeNode rootNode, OutputStream fw) throws IOException {
+
+    /**
+     * Writes the compiled word bank for the given NGram Tree branch to an OutputStream.
+     * Each word is encoded as bytes in a block with the format | word_length || word_data |
+     *
+     * @param rootNode The root node of the NGram Tree branch.
+     * @param outputStream The OutputStream to write the word bank to.
+     * @throws IOException If an I/O error occurs during the writing process.
+     */
+    static void writeWordBank(NGramTreeNode rootNode, OutputStream outputStream) throws IOException {
         List<String> wordBank = compileWordBank(rootNode);
+
         for (String word : wordBank) {
-            byte[] encoded = encodeWordForWordBank(word);
-            fw.write(encoded);
+            outputStream.write(encodeWordForWordBank(word));
         }
     }
 }
