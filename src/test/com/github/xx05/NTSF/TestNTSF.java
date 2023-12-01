@@ -63,7 +63,7 @@ class TestNTSF {
         assert (encoded8[0] & 0xff) == (192 | 1);  // word bank reference indicator
         assert encoded8[1] == 8;  // index in word bank
         assert (encoded8[2] & 0xff) == (128 | 1);  // end word data indicator
-        assert encoded8[3] == 2; // number of branches
+        assert encoded8[3] == 2;  // number of branches
     }
 
     public static void testEncodeNodeWordBankReference_with_BigAddress() {
@@ -80,11 +80,24 @@ class TestNTSF {
         assert encoded8[4] == 2;  // number of branches
     }
 
+    public static void testEncodeNodeWordBankReference_with_ZeroAddress() {
+        NGramTreeNode node = new NGramTreeNode("root");
+        node.addWord("branch1");
+        node.addWord("branch2");
+
+        byte[] encoded8 = NTSFile.encodeNodeWordBankReference(0, node);
+
+        assert (encoded8[0] & 0xff) == 192;  // word bank reference indicator
+        assert (encoded8[1] & 0xff) == (128 | 1);  // end word data indicator
+        assert encoded8[2] == 2;  // number of branches
+    }
+
     public static void main(String[] args) throws IOException, MalformedSerialBinaryException {
         testEncodeWordForWordBank();
         testEncodeNodeStandard();
         testEncodeNodeWordBankReference_with_SmallAddress();
         testEncodeNodeWordBankReference_with_BigAddress();
+        testEncodeNodeWordBankReference_with_ZeroAddress();
 
         NGramTreeNode baseTree = NGramTreeNodeFileHandler.deserializeBinary(new FileInputStream("base_tree.ntsf"));
         System.out.println(Arrays.toString(baseTree.predictNextWord("hi my name is".split(" "))));
