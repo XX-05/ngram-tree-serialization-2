@@ -1,9 +1,7 @@
 package com.github.xx05.NTSF;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 class TestNTSF {
     public static void testEncodeWordForWordBank() {
@@ -92,6 +90,16 @@ class TestNTSF {
         assert encoded8[2] == 2;  // number of branches
     }
 
+    public static void testCreateWordBankAddressMap(List<String> wordBank) {
+        HashMap<String, Integer> addressMap = NTSFile.createWordBankAddressMap(wordBank);
+        for (Map.Entry<String, Integer> e : addressMap.entrySet()) {
+            int index = e.getValue();
+            String word = e.getKey();
+
+            assert wordBank.get(index).equals(word);
+        }
+    }
+
     public static void main(String[] args) throws IOException, MalformedSerialBinaryException {
         testEncodeWordForWordBank();
         testEncodeNodeStandard();
@@ -102,5 +110,10 @@ class TestNTSF {
         NGramTreeNode baseTree = NGramTreeNodeFileHandler.deserializeBinary(new FileInputStream("base_tree.ntsf"));
         System.out.println(Arrays.toString(baseTree.predictNextWord("hi my name is".split(" "))));
         testWriteWordBank(baseTree);
+
+        List<String> wordBank = NTSFile.compileWordBank(baseTree);
+        testCreateWordBankAddressMap(wordBank);
+
+        NTSFile.serializeBinary(baseTree, new FileOutputStream("wordbank_serial.nts"));
     }
 }

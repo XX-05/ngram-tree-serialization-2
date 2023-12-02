@@ -72,6 +72,8 @@ public class NTSFile {
      * @param repeatedWords A list of repeated words from a NGramTree to filter.
      */
     static void filterRepeats(List<String> repeatedWords) {
+        // TODO: Ensure that max array reference (array length) can be stored
+        //  in 64 bytes (its enormous you're chill)
         for (int i = 0; i < repeatedWords.size(); i ++) {
             String word = repeatedWords.get(i);
             if (computeByteWidth(i) + 2 >= word.length() || word.length() > 256) {
@@ -99,6 +101,21 @@ public class NTSFile {
     }
 
     /**
+     * Creates a map between words in the word bank and their indexes
+     * for fast lookup during encoding.
+     *
+     * @param wordBank The word bank to map
+     * @return A mapping of word bank entries to their indexes
+     */
+    static HashMap<String, Integer> createWordBankAddressMap(List<String> wordBank) {
+        HashMap<String, Integer> addressMap = new HashMap<>();
+        for (int i = 0; i < wordBank.size(); i ++) {
+            addressMap.put(wordBank.get(i), i);
+        }
+        return addressMap;
+    }
+
+    /**
      * Encodes a word as bytes for the word bank
      * in the binary tree serialization.
      *
@@ -117,19 +134,21 @@ public class NTSFile {
 
 
     /**
-     * Writes the compiled word bank for the given NGram Tree branch to an OutputStream.
-     * Each word is encoded as bytes in a block with the format | word_length || word_data |
+     * Writes the compiled word bank for the given NGram Tree branch to an OutputStream and returns
+     * the word bank. Each word is encoded as bytes in a block with the format | word_length || word_data |
      *
      * @param rootNode The root node of the NGram Tree branch.
      * @param outputStream The OutputStream to write the word bank to.
      * @throws IOException If an I/O error occurs during the writing process.
      */
-    static void writeWordBank(NGramTreeNode rootNode, OutputStream outputStream) throws IOException {
+    static List<String> writeWordBank(NGramTreeNode rootNode, OutputStream outputStream) throws IOException {
         List<String> wordBank = compileWordBank(rootNode);
 
         for (String word : wordBank) {
             outputStream.write(encodeWordForWordBank(word));
         }
+
+        return wordBank;
     }
 
     static byte[] encodeNodeStandard(NGramTreeNode node) {
@@ -181,5 +200,25 @@ public class NTSFile {
         }
 
         return encoded;
+    }
+
+    public static void serializeBinary(NGramTreeNode rootNode, OutputStream fw) throws IOException {
+        List<String> wordBank = writeWordBank(rootNode, fw);
+        HashMap<String, Integer> wordBankAddressMap = createWordBankAddressMap(wordBank);
+
+        Stack<NGramTreeNode> stack = new Stack<>();
+        stack.add(rootNode);
+
+        while (!stack.isEmpty()) {
+            NGramTreeNode node = stack.pop();
+
+            if (wordBankAddressMap.containsKey(node.getWord())) {
+                fw.write(encodeNodeWordBankReference(wordBankAddressMap.get(node.getWord()), node));
+            } else {
+                fw.write(encodeNodeStandard(node));
+            }
+
+            stack.addAll(List.of(node.getChildren()));
+        }
     }
 }
