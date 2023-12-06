@@ -1,10 +1,24 @@
 package com.github.xx05.NTSF;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
 import java.io.*;
 import java.util.*;
 
-class TestNTSF {
-    public static void testEncodeWordForWordBank() {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class NTSFileTests {
+    static NGramTreeNode baseTree;
+
+    @BeforeAll
+    static void initializeTree() throws IOException, MalformedSerialBinaryException {
+        baseTree = NGramTreeNodeFileHandler.deserializeBinary(new FileInputStream("base_tree.ntsf"));
+    }
+
+    @Test
+    public void testEncodeWordForWordBank() {
         byte[] encoded = NTSFile.encodeWordForWordBank("word");
         assert encoded.length == 5;
         assert encoded[0] == 4;
@@ -14,12 +28,21 @@ class TestNTSF {
         assert encoded[4] == 'd';
     }
 
-    public static void testWriteWordBank(NGramTreeNode rootNode) throws IOException {
+    @Test
+    public void testWriteWordBank() throws IOException {
         ByteArrayOutputStream fw = new ByteArrayOutputStream();
-        List<String> wordBank = NTSFile.compileWordBank(rootNode);
-        NTSFile.writeWordBank(rootNode, fw);
+        List<String> wordBank = NTSFile.compileWordBank(baseTree);
+        NTSFile.writeWordBank(baseTree, fw);
         InputStream fr = new ByteArrayInputStream(fw.toByteArray());
         List<String> reconstructedWordBank = new ArrayList<>();
+
+        int wordBankExpectedSize = 0;
+        int currByte = 0;
+        for (int i = 0; (currByte = fr.read()) != 0; i ++) {
+            wordBankExpectedSize = (currByte << (8 * i)) | wordBankExpectedSize;
+        }
+
+        assertEquals(wordBank.size(), wordBankExpectedSize);
 
         int wordLength;
         while ((wordLength = fr.read()) != -1) {
@@ -37,7 +60,8 @@ class TestNTSF {
         }
     }
 
-    public static void testEncodeNodeStandard() {
+    @Test
+    public void testEncodeNodeStandard() {
         NGramTreeNode node = new NGramTreeNode("root");
         node.addWord("branch1");
         node.addWord("branch2");
@@ -51,7 +75,8 @@ class TestNTSF {
         assert encoded[5] == 2;
     }
 
-    public static void testEncodeNodeWordBankReference_with_SmallAddress() {
+    @Test
+    public void testEncodeNodeWordBankReference_with_SmallAddress() {
         NGramTreeNode node = new NGramTreeNode("root");
         node.addWord("branch1");
         node.addWord("branch2");
@@ -64,7 +89,8 @@ class TestNTSF {
         assert encoded8[3] == 2;  // number of branches
     }
 
-    public static void testEncodeNodeWordBankReference_with_BigAddress() {
+    @Test
+    public void testEncodeNodeWordBankReference_with_BigAddress() {
         NGramTreeNode node = new NGramTreeNode("root");
         node.addWord("branch1");
         node.addWord("branch2");
@@ -78,7 +104,8 @@ class TestNTSF {
         assert encoded8[4] == 2;  // number of branches
     }
 
-    public static void testEncodeNodeWordBankReference_with_ZeroAddress() {
+    @Test
+    public void testEncodeNodeWordBankReference_with_ZeroAddress() {
         NGramTreeNode node = new NGramTreeNode("root");
         node.addWord("branch1");
         node.addWord("branch2");
@@ -90,7 +117,9 @@ class TestNTSF {
         assert encoded8[2] == 2;  // number of branches
     }
 
-    public static void testCreateWordBankAddressMap(List<String> wordBank) {
+    @Test
+    public void testCreateWordBankAddressMap() {
+        List<String> wordBank = NTSFile.compileWordBank(baseTree);
         HashMap<String, Integer> addressMap = NTSFile.createWordBankAddressMap(wordBank);
         for (Map.Entry<String, Integer> e : addressMap.entrySet()) {
             int index = e.getValue();
@@ -100,20 +129,9 @@ class TestNTSF {
         }
     }
 
-    public static void main(String[] args) throws IOException, MalformedSerialBinaryException {
-        testEncodeWordForWordBank();
-        testEncodeNodeStandard();
-        testEncodeNodeWordBankReference_with_SmallAddress();
-        testEncodeNodeWordBankReference_with_BigAddress();
-        testEncodeNodeWordBankReference_with_ZeroAddress();
-
-        NGramTreeNode baseTree = NGramTreeNodeFileHandler.deserializeBinary(new FileInputStream("base_tree.ntsf"));
-        System.out.println(Arrays.toString(baseTree.predictNextWord("hi my name is".split(" "))));
-        testWriteWordBank(baseTree);
-
-        List<String> wordBank = NTSFile.compileWordBank(baseTree);
-        testCreateWordBankAddressMap(wordBank);
-
+    @AfterAll
+    public static void writeSerializedTree() throws IOException {
         NTSFile.serializeBinary(baseTree, new FileOutputStream("wordbank_serial.nts"));
+        System.out.println("Wrote 'wordbank_serial.nts'");
     }
 }
