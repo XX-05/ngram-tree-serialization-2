@@ -20,12 +20,13 @@ class NTSFileTests {
     @Test
     public void testEncodeWordForWordBank() {
         byte[] encoded = NTSFile.encodeWordForWordBank("word");
-        assert encoded.length == 5;
-        assert encoded[0] == 4;
-        assert encoded[1] == 'w';
-        assert encoded[2] == 'o';
-        assert encoded[3] == 'r';
-        assert encoded[4] == 'd';
+
+        assertEquals(5, encoded.length);
+        assertEquals(4, encoded[0]);
+        assertEquals('w', encoded[1]);
+        assertEquals('o', encoded[2]);
+        assertEquals('r', encoded[3]);
+        assertEquals('d', encoded[4]);
     }
 
     @Test
@@ -59,12 +60,13 @@ class NTSFileTests {
         node.addWord("branch2");
 
         byte[] encoded = NTSFile.encodeNodeStandard(node);
-        assert encoded[0] == 'r';
-        assert encoded[1] == 'o';
-        assert encoded[2] == 'o';
-        assert encoded[3] == 't';
-        assert (encoded[4] & 0xff) == (128 | 1);
-        assert encoded[5] == 2;
+
+        assertEquals('r', encoded[0]);
+        assertEquals('o', encoded[1]);
+        assertEquals('o', encoded[2]);
+        assertEquals('t', encoded[3]);
+        assertEquals(128 | 1, encoded[4] & 0xff);
+        assertEquals(2, encoded[5]);
     }
 
     @Test
@@ -75,10 +77,10 @@ class NTSFileTests {
 
         byte[] encoded8 = NTSFile.encodeNodeWordBankReference(8, node);
 
-        assert (encoded8[0] & 0xff) == (192 | 1);  // word bank reference indicator
-        assert encoded8[1] == 8;  // index in word bank
-        assert (encoded8[2] & 0xff) == (128 | 1);  // end word data indicator
-        assert encoded8[3] == 2;  // number of branches
+        assertEquals(192 | 1, encoded8[0] & 0xff);  // word bank reference indicator
+        assertEquals(8, encoded8[1]);  // index in word bank
+        assertEquals(128 | 1, encoded8[2] & 0xff);  // end word data indicator
+        assertEquals(2, encoded8[3]);  // number of branches
     }
 
     @Test
@@ -89,11 +91,11 @@ class NTSFileTests {
 
         byte[] encoded8 = NTSFile.encodeNodeWordBankReference(13000, node);
 
-        assert (encoded8[0] & 0xff) == (192 | 2);  // word bank reference indicator
-        assert encoded8[1] == 50;  // index in word bank (13000 in big-endian)
-        assert encoded8[2] == (byte) 200;  // big end of 13000
-        assert (encoded8[3] & 0xff) == (128 | 1);  // end word data indicator
-        assert encoded8[4] == 2;  // number of branches
+        assertEquals(192 | 2, encoded8[0] & 0xff);  // word bank reference indicator
+        assertEquals(50, encoded8[1]);  // index in word bank (13000 in big-endian)
+        assertEquals((byte) 200, encoded8[2]);  // big end of 13000
+        assertEquals(128 | 1, encoded8[3] & 0xff);  // end word data indicator
+        assertEquals(2, encoded8[4]);  // number of branches
     }
 
     @Test
@@ -104,9 +106,9 @@ class NTSFileTests {
 
         byte[] encoded8 = NTSFile.encodeNodeWordBankReference(0, node);
 
-        assert (encoded8[0] & 0xff) == 192;  // word bank reference indicator
-        assert (encoded8[1] & 0xff) == (128 | 1);  // end word data indicator
-        assert encoded8[2] == 2;  // number of branches
+        assertEquals(encoded8[0] & 0xff, 192);  // word bank reference indicator
+        assertEquals(encoded8[1] & 0xff, (128 | 1));  // end word data indicator
+        assertEquals(encoded8[2], 2);  // number of branches
     }
 
     @Test
@@ -117,7 +119,7 @@ class NTSFileTests {
             int index = e.getValue();
             String word = e.getKey();
 
-            assert wordBank.get(index).equals(word);
+            assertEquals(word, wordBank.get(index));
         }
     }
 
