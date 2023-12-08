@@ -135,7 +135,8 @@ public class NTSFile {
 
     /**
      * Writes the compiled word bank for the given NGram Tree branch to an OutputStream and returns
-     * the word bank. Each word is encoded as bytes in a block with the format | word_length || word_data |
+     * the word bank. Each word is encoded as bytes in a block with the format | word_length || word_data |.
+     * The word bank terminates with the 0 byte which indicates that tree data will follow.
      *
      * @param rootNode The root node of the NGram Tree branch.
      * @param outputStream The OutputStream to write the word bank to.
@@ -144,15 +145,11 @@ public class NTSFile {
     static List<String> writeWordBank(NGramTreeNode rootNode, OutputStream outputStream) throws IOException {
         List<String> wordBank = compileWordBank(rootNode);
 
-        for (int i = 0; (wordBank.size() >> (8 * i)) > 0; i ++) {
-            outputStream.write(wordBank.size() >> (8 * i));
-            System.out.println((wordBank.size() >> (8 * i)) & 0xff);
-        }
-        outputStream.write(0);
-
         for (String word : wordBank) {
             outputStream.write(encodeWordForWordBank(word));
         }
+
+        outputStream.write(0);
 
         return wordBank;
     }

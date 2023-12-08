@@ -33,19 +33,15 @@ class NTSFileTests {
         ByteArrayOutputStream fw = new ByteArrayOutputStream();
         List<String> wordBank = NTSFile.compileWordBank(baseTree);
         NTSFile.writeWordBank(baseTree, fw);
-        InputStream fr = new ByteArrayInputStream(fw.toByteArray());
+
+        byte[] wordBankBytes = fw.toByteArray();
+        assertEquals(wordBankBytes[wordBankBytes.length - 1], 0);  // ensure word bank terminates with 0 byte
+
+        InputStream fr = new ByteArrayInputStream(wordBankBytes);
         List<String> reconstructedWordBank = new ArrayList<>();
 
-        int wordBankExpectedSize = 0;
-        int currByte = 0;
-        for (int i = 0; (currByte = fr.read()) != 0; i ++) {
-            wordBankExpectedSize = (currByte << (8 * i)) | wordBankExpectedSize;
-        }
-
-        assertEquals(wordBank.size(), wordBankExpectedSize);
-
         int wordLength;
-        while ((wordLength = fr.read()) != -1) {
+        while ((wordLength = fr.read()) != 0) {
             StringBuilder wordBuffer = new StringBuilder();
             for (int i = 0; i < wordLength; i ++) {
                 wordBuffer.append((char) fr.read());
@@ -53,11 +49,7 @@ class NTSFileTests {
             reconstructedWordBank.add(wordBuffer.toString());
         }
 
-        assert wordBank.equals(reconstructedWordBank);
-
-        try (FileOutputStream fileOutputStream = new FileOutputStream("wordBank.nts")) {
-            fileOutputStream.write(fw.toByteArray());
-        }
+        assertEquals(wordBank, reconstructedWordBank);
     }
 
     @Test
