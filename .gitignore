@@ -58,3 +58,4 @@ replay_pid*
 *.ngrams
 *.ntsf
 *.nts
+!base_tree.ntsf
