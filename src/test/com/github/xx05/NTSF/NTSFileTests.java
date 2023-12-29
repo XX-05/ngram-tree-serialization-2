@@ -8,6 +8,7 @@ import java.io.*;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for the NTSFile class, which handles encoding and decoding of N-Gram trees to and from binary files.
@@ -50,7 +51,7 @@ class NTSFileTests {
      * @throws IOException If an I/O error occurs while writing or reading from the streams.
      */
     @Test
-    public void testWriteWordBank() throws IOException {
+    public void testWriteWordBank_and_ParseWordBank() throws IOException {
         ByteArrayOutputStream fw = new ByteArrayOutputStream();
         List<String> wordBank = NTSFile.compileWordBank(baseTree);
         NTSFile.writeWordBank(baseTree, fw);
@@ -59,16 +60,7 @@ class NTSFileTests {
         assertEquals(wordBankBytes[wordBankBytes.length - 1], 0);  // ensure word bank terminates with 0 byte
 
         InputStream fr = new ByteArrayInputStream(wordBankBytes);
-        List<String> reconstructedWordBank = new ArrayList<>();
-
-        int wordLength;
-        while ((wordLength = fr.read()) > 0) {
-            StringBuilder wordBuffer = new StringBuilder();
-            for (int i = 0; i < wordLength; i ++) {
-                wordBuffer.append((char) fr.read());
-            }
-            reconstructedWordBank.add(wordBuffer.toString());
-        }
+        List<String> reconstructedWordBank = NTSFile.parseWordBank(fr);
 
         assertEquals(wordBank, reconstructedWordBank);
     }
@@ -77,7 +69,7 @@ class NTSFileTests {
      * Tests the encoding of an N-Gram tree node in standard format and verifies the correctness of the encoded byte array.
      */
     @Test
-    public void testEncodeNodeStandard() {
+    public void testEncodeNodeStandard() throws TreeSerializationException {
         NGramTreeNode node = new NGramTreeNode("root");
         node.addWord("branch1");
         node.addWord("branch2");
@@ -161,13 +153,22 @@ class NTSFileTests {
         }
     }
 
+    @Test
+    public void testSerializeBinary_and_DeserializeBinary() throws TreeSerializationException, IOException, MalformedSerialBinaryException {
+        ByteArrayOutputStream fw = new ByteArrayOutputStream();
+        NTSFile.serializeBinary(baseTree, fw);
+        ByteArrayInputStream fr = new ByteArrayInputStream(fw.toByteArray());
+        NGramTreeNode deserializedTree = NTSFile.deserializeBinary(fr);
+        assertTrue(baseTree.equals(deserializedTree));
+    }
+
     /**
      * Writes the serialized base N-Gram tree to a binary file after running all test methods.
      *
      * @throws IOException If an I/O error occurs while writing to the output stream.
      */
     @AfterAll
-    public static void writeSerializedTree() throws IOException {
+    public static void writeSerializedTree() throws IOException, TreeSerializationException {
         NTSFile.serializeBinary(baseTree, new FileOutputStream("wordbank_serial.nts"));
         System.out.println("Wrote 'wordbank_serial.nts'");
     }

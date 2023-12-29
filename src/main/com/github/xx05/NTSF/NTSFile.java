@@ -1,22 +1,15 @@
 package com.github.xx05.NTSF;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class NTSFile {
-    SerializationCodec codec;
 
-    /**
-     * Creates a new NGramTreeNodeFileHandler which uses the given serialization codec
-     * to serialize and deserialize ngram trees.
-     *
-     * @param serializationCodec The codec to use for binary tree (de)serialization
-     */
-    public NTSFile(SerializationCodec serializationCodec) {
-        codec = serializationCodec;
-    }
+    static final int BANK_REF_INDICATOR_MASK = 192;
+    static final int END_WORD_MASK = 128;
 
     /**
      * Returns the minimum number of bytes needed to
@@ -154,17 +147,20 @@ public class NTSFile {
         return wordBank;
     }
 
-    static byte[] encodeNodeStandard(NGramTreeNode node) {
+    static byte[] encodeNodeStandard(NGramTreeNode node) throws TreeSerializationException {
         int nChildren = node.getBranchCount();
         int nChildrenByteWidth = computeByteWidth(nChildren);
 
         if (nChildrenByteWidth > 63) {
-            System.out.println(nChildren + " " + nChildrenByteWidth);
+            throw new TreeSerializationException("The number of children of this node exceed 2**63 - 1.");
         }
 
         byte[] wordBytes = node.getWord().getBytes(StandardCharsets.US_ASCII);
 
+        // the size of the encoded node is equal to the length of the word plus
+        // the byte width of nChildren plus 1 for the END_WORD byte.
         byte[] encoded = new byte[wordBytes.length + nChildrenByteWidth + 1];
+        // copy the node's word into the encoded array
         System.arraycopy(wordBytes, 0, encoded, 0, wordBytes.length);
 
         // END_WORD byte storing the number of bytes encoding N_CHILDREN like so
@@ -186,7 +182,10 @@ public class NTSFile {
 
         byte[] encoded = new byte[addressByteWidth + nChildrenByteWidth + 2];
 
-        encoded[0] = (byte) (192 | addressByteWidth);
+        // BANK_REF byte indicating that this node's word is stored in the
+        // word bank as well as storing the byte width of the word's index in the bank like so
+        // | 1 1 | | (6 byte ADDRESS_SIZE) |
+        encoded[0] = (byte) (BANK_REF_INDICATOR_MASK | addressByteWidth);
 
         // copy word bank address into encoded array big-endian
         for (int i = 0; i < addressByteWidth; i ++) {
@@ -195,7 +194,7 @@ public class NTSFile {
 
         // END_WORD byte storing the number of bytes encoding N_CHILDREN like so
         // | 1 0 | | (6 byte N_CHILDREN_SIZE) |
-        encoded[addressByteWidth + 1] = (byte) (128 | nChildrenByteWidth);
+        encoded[addressByteWidth + 1] = (byte) (END_WORD_MASK | nChildrenByteWidth);
 
         // copy nChildren bytes into tail-end of encoded array big-endian
         for (int i = 0; i < nChildrenByteWidth; i++) {
@@ -205,7 +204,7 @@ public class NTSFile {
         return encoded;
     }
 
-    public static void serializeBinary(NGramTreeNode rootNode, OutputStream outputStream) throws IOException {
+    public static void serializeBinary(NGramTreeNode rootNode, OutputStream outputStream) throws IOException, TreeSerializationException {
         List<String> wordBank = writeWordBank(rootNode, outputStream);
         HashMap<String, Integer> wordBankAddressMap = createWordBankAddressMap(wordBank);
 
@@ -223,5 +222,140 @@ public class NTSFile {
 
             stack.addAll(List.of(node.getChildren()));
         }
+    }
+
+    static List<String> parseWordBank(InputStream inputStream) throws IOException {
+        List<String> reconstructedWordBank = new ArrayList<>();
+
+        int wordLength;
+        while ((wordLength = inputStream.read()) != 0) {
+            StringBuilder wordBuffer = new StringBuilder();
+            for (int i = 0; i < wordLength; i ++) {
+                wordBuffer.append((char) inputStream.read());
+            }
+            reconstructedWordBank.add(wordBuffer.toString());
+        }
+
+        return reconstructedWordBank;
+    }
+
+    /**
+     * The magic of the tree reconstruction algorithm:
+     * deflateStack pops the previous node (parent) in the stack, adds the newNodeData to it,
+     * reduces the parent's remaining children value by 1, then adds the parent and child data
+     * back onto to the stack if their remaining children is greater than 0. After this,
+     * the stack is 'deflated' and all nodes with 0 remaining children are removed from the top
+     * of the stack until a node with > 0 remaining children is reached.
+     *
+     * @param stack The stack populated by previous deflateStack calls which stores the intermediate state
+     *              of the node reconstruction.
+     * @param newNodeData A Pair storing the new node to add and the number of children that must be attached
+     *                    to it during reconstruction.
+     */
+    static void deflateStack(Stack<Pair<NGramTreeNode, Integer>> stack, Pair<NGramTreeNode, Integer> newNodeData) {
+        Pair<NGramTreeNode, Integer> parentData = stack.get(stack.size() - 1);
+        parentData.getFirst().addChild(newNodeData.getFirst());
+        parentData.setSecond(parentData.getSecond() - 1);
+
+        if (parentData.getSecond() == 0)
+            // pop here instead of originally popping and reinserting to reduce unnecessary stack manipulation
+            stack.pop();
+        if (newNodeData.getSecond() > 0)
+            stack.add(newNodeData);
+
+        // ** deflate stack **
+        for (int j = stack.size() - 1; j > 0; j--) {
+            Pair<NGramTreeNode, Integer> n = stack.get(j);
+            if (n.getSecond() > 0) {
+                break;
+            }
+            stack.pop();
+        }
+    }
+
+    /**
+     * Converts an ArrayList of (character) bytes to a String.
+     *
+     * @param buff The ArrayList containing the byte data.
+     * @return The String representation of the byte data.
+     */
+    static String parseBuffToString(ArrayList<Byte> buff) {
+        StringBuilder word = new StringBuilder();
+        for (Byte b : buff) {
+            word.append((char) b.byteValue());
+        }
+        return word.toString();
+    }
+
+    /**
+     * Parses the next nBytes of the file and returns the integer,
+     * nChildren, that they store (big endian).
+     *
+     * @param fr The file input stream
+     * @param nBytes The number of bytes storing nChildren
+     * @return The parsed nChildren value
+     * @throws IOException when there is an issue reading from fr
+     */
+    static int parseNChildren(InputStream fr, int nBytes) throws IOException {
+        int nChildren = 0;
+        for (int i = 0; i < nBytes; i++) {
+            nChildren = (nChildren & 0xFF) << 8 | (fr.read() & 0xFF);
+        }
+        return nChildren;
+    }
+
+    /**
+     * Deserializes a binary encoded NGramTreeNode from an InputStream.
+     *
+     * @param inputStream The InputStream containing the binary encoded data.
+     * @return The root NGramTreeNode reconstructed from the binary encoded data.
+     * @throws IOException If an I/O error occurs while reading from the stream.
+     * @throws MalformedSerialBinaryException If the binary data is malformed or cannot be parsed.
+     */
+    public static NGramTreeNode deserializeBinary(InputStream inputStream) throws IOException, MalformedSerialBinaryException {
+        List<String> wordBank = parseWordBank(inputStream);
+
+        NGramTreeNode rootNode = null;
+        Stack<Pair<NGramTreeNode, Integer>> stack = new Stack<>();
+
+        ArrayList<Byte> buff = new ArrayList<>();
+
+        int currByte;
+        while ((currByte = inputStream.read()) != -1) {
+            if (currByte >= END_WORD_MASK) {
+                // parses buff into word for the standard block case
+                // if the current block is a backreference, word is set to an empty string
+                String word = parseBuffToString(buff);
+
+                if (currByte >= BANK_REF_INDICATOR_MASK) {
+                    int wordBankAddressByteWidth = currByte & 63;
+                    int address = parseNChildren(inputStream, wordBankAddressByteWidth);
+                    word = wordBank.get(address);
+                    currByte = inputStream.read(); // read byte storing nChildren byte length to match the standard case
+                }
+
+                int nChildren = parseNChildren(inputStream, currByte & 63);
+                buff.clear();
+
+                NGramTreeNode node = new NGramTreeNode(word);
+                Pair<NGramTreeNode, Integer> newNodeData = new Pair<>(node, nChildren);
+
+                if (rootNode == null) {
+                    rootNode = node;
+                    stack.add(newNodeData);
+                    continue;
+                }
+
+                deflateStack(stack, newNodeData);  // tree reconstruction magic
+            } else {
+                buff.add((byte) currByte);
+            }
+        }
+
+        if (rootNode == null) {
+            throw new MalformedSerialBinaryException("Could not parse any nodes from the given data!");
+        }
+
+        return rootNode;
     }
 }

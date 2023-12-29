@@ -61,11 +61,11 @@ public class NGramTreeNode {
     public String toString() {
         StringBuilder childrenString = new StringBuilder();
         if (children.size() > 0) {
-            for (NGramTreeNode child : children.values()) {
-                childrenString.append(child.toString()).append(", ");
-            }
-            childrenString.setLength(childrenString.length() - 2);
-            return String.format("<LetterTreeNode: %s; Children: %s>", word, childrenString);
+//            for (NGramTreeNode child : children.values()) {
+//                childrenString.append(child.toString()).append(", ");
+//            }
+//            childrenString.setLength(childrenString.length() - 2);
+            return String.format("<LetterTreeNode: %s; Children: %d>", word, children.size());
         } else {
             return String.format("<LetterTreeNode: %s>", word);
         }
@@ -77,7 +77,7 @@ public class NGramTreeNode {
      * @param otherNode The other NGramTreeNode to compare.
      * @return true if the nodes are deep equal, false otherwise.
      */
-    public boolean deepEquals(NGramTreeNode otherNode) {
+    public boolean equals(NGramTreeNode otherNode) {
         if (!this.word.equals(otherNode.word)) {
             return false;
         }
@@ -91,7 +91,7 @@ public class NGramTreeNode {
             NGramTreeNode thisChild = entry.getValue();
             NGramTreeNode otherChild = otherNode.children.get(key);
 
-            if (otherChild == null || !thisChild.deepEquals(otherChild)) {
+            if (otherChild == null || !thisChild.equals(otherChild)) {
                 return false;
             }
         }
