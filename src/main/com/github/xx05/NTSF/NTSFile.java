@@ -147,6 +147,13 @@ public class NTSFile {
         return wordBank;
     }
 
+    /**
+     * Encodes a node in the standard format for binary tree serialization.
+     *
+     * @param node The NGramTreeNode to encode.
+     * @return The encoded node.
+     * @throws TreeSerializationException If there is an issue during tree serialization.
+     */
     static byte[] encodeNodeStandard(NGramTreeNode node) throws TreeSerializationException {
         int nChildren = node.getBranchCount();
         int nChildrenByteWidth = computeByteWidth(nChildren);
@@ -175,6 +182,14 @@ public class NTSFile {
         return encoded;
     }
 
+    /**
+     * Encodes a node that has its word stored in the
+     * word bank for binary tree serialization.
+     *
+     * @param wordBankAddress The address of the word in the word bank.
+     * @param node The NGramTreeNode to encode.
+     * @return The encoded node with a word bank reference.
+     */
     static byte[] encodeNodeWordBankReference(int wordBankAddress, NGramTreeNode node) {
         int nChildren = node.getBranchCount();
         int nChildrenByteWidth = computeByteWidth(nChildren);
@@ -204,6 +219,14 @@ public class NTSFile {
         return encoded;
     }
 
+    /**
+     * Writes the serialized binary form of the NGramTreeNode to an OutputStream.
+     *
+     * @param rootNode The root node of the NGram Tree to serialize.
+     * @param outputStream The OutputStream to write the binary data to.
+     * @throws IOException If an I/O error occurs during the writing process.
+     * @throws TreeSerializationException If there is an issue during tree serialization.
+     */
     public static void serializeBinary(NGramTreeNode rootNode, OutputStream outputStream) throws IOException, TreeSerializationException {
         List<String> wordBank = writeWordBank(rootNode, outputStream);
         HashMap<String, Integer> wordBankAddressMap = createWordBankAddressMap(wordBank);
@@ -224,6 +247,13 @@ public class NTSFile {
         }
     }
 
+    /**
+     * Parses the word bank from an InputStream and returns the reconstructed word bank.
+     *
+     * @param inputStream The InputStream containing the binary encoded word bank.
+     * @return The reconstructed word bank.
+     * @throws IOException If an I/O error occurs during the parsing process.
+     */
     static List<String> parseWordBank(InputStream inputStream) throws IOException {
         List<String> reconstructedWordBank = new ArrayList<>();
 
