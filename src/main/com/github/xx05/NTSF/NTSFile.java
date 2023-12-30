@@ -288,18 +288,18 @@ public class NTSFile {
     }
 
     /**
-     * Parses the next nBytes of the file and returns the integer,
-     * nChildren, that they store (big endian).
+     * Parses the next byteWidth bytes from inputStream and returns the
+     * big endian integer represented by them.
      *
-     * @param fr The file input stream
-     * @param nBytes The number of bytes storing nChildren
+     * @param inputStream The input stream to read from
+     * @param byteWidth The number of bytes storing nChildren
      * @return The parsed nChildren value
-     * @throws IOException when there is an issue reading from fr
+     * @throws IOException when there is an issue reading from inputStream
      */
-    static int parseNChildren(InputStream fr, int nBytes) throws IOException {
+    static int parseBigEndianInteger(InputStream inputStream, int byteWidth) throws IOException {
         int nChildren = 0;
-        for (int i = 0; i < nBytes; i++) {
-            nChildren = (nChildren & 0xFF) << 8 | (fr.read() & 0xFF);
+        for (int i = 0; i < byteWidth; i++) {
+            nChildren = (nChildren & 0xFF) << 8 | (inputStream.read() & 0xFF);
         }
         return nChildren;
     }
@@ -328,13 +328,12 @@ public class NTSFile {
                 String word = parseBuffToString(buff);
 
                 if (currByte >= BANK_REF_INDICATOR_MASK) {
-                    int wordBankAddressByteWidth = currByte & 63;
-                    int address = parseNChildren(inputStream, wordBankAddressByteWidth);
+                    int address = parseBigEndianInteger(inputStream, currByte & 63);
                     word = wordBank.get(address);
                     currByte = inputStream.read(); // read byte storing nChildren byte length to match the standard case
                 }
 
-                int nChildren = parseNChildren(inputStream, currByte & 63);
+                int nChildren = parseBigEndianInteger(inputStream, currByte & 63);
                 buff.clear();
 
                 NGramTreeNode node = new NGramTreeNode(word);
