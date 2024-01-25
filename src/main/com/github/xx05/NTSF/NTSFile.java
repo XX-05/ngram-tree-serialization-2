@@ -1,15 +1,32 @@
 package com.github.xx05.NTSF;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+/**
+ * A utility class for handling serialization and deserialization of NGramTreeNode objects.
+ * NTSFile provides methods to serialize and deserialize NGramTreeNode trees in binary.
+ */
 public class NTSFile {
+    /**
+     * BANK_REF_INDICATOR_MASK is a bitmask which sets the first two bits of a given byte < 128
+     * to 11 under the bitwise OR operation. In a serialized binary, a byte beginning with 11
+     * indicates that the following bytes will encode a wordbank address for a node's word and that
+     * the remaining bits in the current byte store the byte-width of that address value.
+     */
+    static final int BANK_REF_INDICATOR_MASK = 192;  // 0b11000000
+    /**
+     * END_WORD_MASK is a bitmask which sets the first two bits of a given byte < 128
+     * to 10 under the bitwise OR operation. In a serialized binary, a byte beginning with
+     * 10 indicates the end of word data for a given node and that the remaining bits in the
+     * current byte store the byte-width of the number of children that node has.
+     */
+    static final int END_WORD_MASK = 128;  // 0b10000000
 
-    static final int BANK_REF_INDICATOR_MASK = 192;
-    static final int END_WORD_MASK = 128;
 
     /**
      * Returns the minimum number of bytes needed to
@@ -220,7 +237,7 @@ public class NTSFile {
     }
 
     /**
-     * Writes the serialized binary form of the NGramTreeNode to an OutputStream.
+     * Writes a binary serialization of the NGramTreeNode to an OutputStream.
      *
      * @param rootNode The root node of the NGram Tree to serialize.
      * @param outputStream The OutputStream to write the binary data to.
@@ -304,20 +321,6 @@ public class NTSFile {
     }
 
     /**
-     * Converts an ArrayList of (character) bytes to a String.
-     *
-     * @param buff The ArrayList containing the byte data.
-     * @return The String representation of the byte data.
-     */
-    static String parseBuffToString(ArrayList<Byte> buff) {
-        StringBuilder word = new StringBuilder();
-        for (Byte b : buff) {
-            word.append((char) b.byteValue());
-        }
-        return word.toString();
-    }
-
-    /**
      * Parses the next byteWidth bytes from inputStream and returns the
      * big endian integer represented by them.
      *
@@ -327,15 +330,16 @@ public class NTSFile {
      * @throws IOException when there is an issue reading from inputStream
      */
     static int parseBigEndianInteger(InputStream inputStream, int byteWidth) throws IOException {
-        int nChildren = 0;
+        int parsedInt = 0;
         for (int i = 0; i < byteWidth; i++) {
-            nChildren = (nChildren & 0xFF) << 8 | (inputStream.read() & 0xFF);
+            parsedInt = (parsedInt & 0xFF) << 8 | (inputStream.read() & 0xFF);
         }
-        return nChildren;
+        return parsedInt;
     }
 
     /**
-     * Deserializes a binary encoded NGramTreeNode from an InputStream.
+     * Deserializes a NGramTreeNode binary from an InputStream
+     * and returns the reconstructed tree.
      *
      * @param inputStream The InputStream containing the binary encoded data.
      * @return The root NGramTreeNode reconstructed from the binary encoded data.
@@ -348,14 +352,14 @@ public class NTSFile {
         NGramTreeNode rootNode = null;
         Stack<Pair<NGramTreeNode, Integer>> stack = new Stack<>();
 
-        ArrayList<Byte> buff = new ArrayList<>();
+        ByteArrayOutputStream buff = new ByteArrayOutputStream();
 
         int currByte;
         while ((currByte = inputStream.read()) != -1) {
             if (currByte >= END_WORD_MASK) {
                 // parses buff into word for the standard block case
                 // if the current block is a backreference, word is set to an empty string
-                String word = parseBuffToString(buff);
+                String word = buff.toString();
 
                 if (currByte >= BANK_REF_INDICATOR_MASK) {
                     int address = parseBigEndianInteger(inputStream, currByte & 63);
@@ -364,7 +368,7 @@ public class NTSFile {
                 }
 
                 int nChildren = parseBigEndianInteger(inputStream, currByte & 63);
-                buff.clear();
+                buff.reset();
 
                 NGramTreeNode node = new NGramTreeNode(word);
                 Pair<NGramTreeNode, Integer> newNodeData = new Pair<>(node, nChildren);
@@ -377,7 +381,7 @@ public class NTSFile {
 
                 deflateStack(stack, newNodeData);  // tree reconstruction magic
             } else {
-                buff.add((byte) currByte);
+                buff.write((byte) currByte);
             }
         }
 
