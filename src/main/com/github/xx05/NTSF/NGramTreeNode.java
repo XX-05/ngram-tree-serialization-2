@@ -54,21 +54,13 @@ public class NGramTreeNode {
 
     /**
      * Returns a string representation of this node and its children
-     * in the format: <LetterTreeNode: word; Children: <>>.
+     * in the format: <br>
+     * {@code <LetterTreeNode: word; Children: number-of-child-nodes>}.
      *
      * @return A string representation of this node and its children.
      */
     public String toString() {
-        StringBuilder childrenString = new StringBuilder();
-        if (children.size() > 0) {
-//            for (NGramTreeNode child : children.values()) {
-//                childrenString.append(child.toString()).append(", ");
-//            }
-//            childrenString.setLength(childrenString.length() - 2);
-            return String.format("<LetterTreeNode: %s; Children: %d>", word, children.size());
-        } else {
-            return String.format("<LetterTreeNode: %s>", word);
-        }
+        return String.format("<LetterTreeNode: %s; Children: %d>", word, children.size());
     }
 
     /**
